@@ -174,21 +174,32 @@ func main() {
 		var tmp Row
 		writer := csv.NewWriter(file)
 		writer.Write([]string{"TFA 2019 Coin Raffle"})
-		writer.Write([]string{
+		//
+		writer.Write([]string{"",
 			"Coin raffle for chain:",
-			fmt.Sprintf("%s", *chainid),
-			"Salt: " + fmt.Sprintf("%s", *saltHex),
-			"Time: " + now.Format(time.RFC822),
+			fmt.Sprintf("%s", *chainid)})
+		//
+		writer.Write([]string{
+			"",
+			"Salt: ",
+			fmt.Sprintf("%s", *saltHex),
 		})
+		//
+		writer.Write([]string{
+			"",
+			"Time: ",
+			now.Format(time.RFC822),
+		})
+
 		writer.Write([]string{})
 
 		// Column headers
-		err = writer.Write(tmp.ColumnHeaders())
+		err = writer.Write(append([]string{"Post Order"}, tmp.ColumnHeaders()...))
 		if err != nil {
 			panic(err)
 		}
-		for _, r := range posts {
-			err = writer.Write(r.Columns())
+		for i, r := range posts {
+			err = writer.Write(append([]string{fmt.Sprintf("%d", i)}, r.Columns()...))
 			if err != nil {
 				panic(err)
 			}
