@@ -10,6 +10,12 @@ import (
 
 	"crypto/sha256"
 
+	"os"
+
+	"encoding/csv"
+
+	"time"
+
 	"github.com/FactomProject/factom"
 )
 
@@ -18,6 +24,46 @@ type Row struct {
 	EntryHash          []byte
 	InvalidationReason string
 	SortableHash       []byte
+	Salt               []byte
+}
+
+type ForumPost struct {
+	EntryDate int64 `json:"entry_date"`
+	PostData  struct {
+		EditCount      int    `json:"edit_count"`
+		LastEditDate   int64  `json:"last_edit_date"`
+		LastEditUserID int    `json:"last_edit_user_id"`
+		MessageSha512  string `json:"message_sha512"`
+		NodeID         int    `json:"node_id"`
+		PostDate       int64  `json:"post_date"`
+		ThreadID       int    `json:"thread_id"`
+		TitleSha512    string `json:"title_sha512"`
+		UserID         int    `json:"user_id"`
+	} `json:"post_data"`
+	PostLink string `json:"post_link"`
+}
+
+func (r *Row) ColumnHeaders() []string {
+	return []string{"UserID", "InvalidationReason", "EntryHash", "SortableHash", "PostLink", "PostDate"}
+}
+
+func (r *Row) Columns() []string {
+	if r.InvalidationReason != "" {
+		return []string{
+			fmt.Sprintf("%d", r.PostData.UserID),
+			r.InvalidationReason,
+			"",
+			"",
+			r.PostLink,
+			time.Unix(r.PostData.PostDate, 0).UTC().Format(time.RFC822)}
+	}
+	return []string{
+		fmt.Sprintf("%d", r.PostData.UserID),
+		r.InvalidationReason,
+		fmt.Sprintf("%x", r.EntryHash),
+		fmt.Sprintf("%x", r.SortableHash),
+		r.PostLink,
+		time.Unix(r.PostData.PostDate, 0).UTC().Format(time.RFC822)}
 }
 
 func (r *Row) String() string {
@@ -32,6 +78,7 @@ func (r *Row) CalcHash(salt []byte) {
 	h.Write(r.EntryHash)
 	h.Write(salt)
 	r.SortableHash = h.Sum(nil)
+	r.Salt = salt
 }
 
 func main() {
@@ -39,6 +86,8 @@ func main() {
 		chainid = flag.String("c", "", "ChainID of post")
 		saltHex = flag.String("s", "", "Salt to hash with entryhash. Must be in hex!")
 		host    = flag.String("h", "localhost:8088", "Factomd host.")
+		csvFile = flag.String("csv", "", "Provide output to csvFile file.")
+		//userFile = flag.String("u", "factomize_users.txt", "List of Factomize users")
 	)
 
 	flag.Parse()
@@ -67,17 +116,34 @@ func main() {
 		panic(err)
 	}
 
+	// Was going to include mapping from user id to username, but holding off
+	//users := make(map[int]string)
+	//uFile, err := os.OpenFile(*userFile, os.O_RDONLY, 0777)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//defer uFile.Close()
+	//rd := csv.NewReader(uFile)
+	//records, err := rd.ReadAll()
+	//if err != nil {
+	//	panic(err)
+	//}
+
 	accounterUsers := make(map[int]int)
 
 	var posts []*Row
 
-	for _, e := range entries {
+	for i := len(entries) - 1; i >= 0; i-- {
+		e := entries[i]
 		post := new(Row)
 		err := json.Unmarshal(e.Content, post)
 		if err != nil {
 			panic(err)
 		}
 		post.EntryHash = e.Hash()
+		if post.PostData.UserID == 0 {
+			continue // Entry that starts chain
+		}
 
 		posts = append(posts, post)
 	}
@@ -85,28 +151,50 @@ func main() {
 	for _, p := range posts {
 		if amt, ok := accounterUsers[p.PostData.UserID]; ok {
 			p.InvalidationReason = fmt.Sprintf("Post number %d by user. Already in raffle", amt)
+			accounterUsers[p.PostData.UserID] = amt + 1
 		} else {
 			accounterUsers[p.PostData.UserID] = 1
 		}
 		p.CalcHash(salt)
-		fmt.Println(p.String())
+		// Print to stdout if not to file
+		if *csvFile == "" {
+			fmt.Println(p.String())
+		}
 	}
-}
 
-type ForumPost struct {
-	EntryDate int64 `json:"entry_date"`
-	PostData  struct {
-		EditCount      int    `json:"edit_count"`
-		LastEditDate   int64  `json:"last_edit_date"`
-		LastEditUserID int    `json:"last_edit_user_id"`
-		MessageSha512  string `json:"message_sha512"`
-		NodeID         int    `json:"node_id"`
-		PostDate       int64  `json:"post_date"`
-		ThreadID       int    `json:"thread_id"`
-		TitleSha512    string `json:"title_sha512"`
-		UserID         int    `json:"user_id"`
-	} `json:"post_data"`
-	PostLink string `json:"post_link"`
+	if *csvFile != "" {
+		file, err := os.OpenFile(*csvFile, os.O_CREATE|os.O_RDWR, 0777)
+		if err != nil {
+			panic(err)
+		}
+		defer file.Close()
+
+		// Write the header things ontop
+		now := time.Now().UTC()
+		var tmp Row
+		writer := csv.NewWriter(file)
+		writer.Write([]string{"TFA 2019 Coin Raffle"})
+		writer.Write([]string{
+			"Coin raffle for chain:",
+			fmt.Sprintf("%s", *chainid),
+			"Salt: " + fmt.Sprintf("%s", *saltHex),
+			"Time: " + now.Format(time.RFC822),
+		})
+		writer.Write([]string{})
+
+		// Column headers
+		err = writer.Write(tmp.ColumnHeaders())
+		if err != nil {
+			panic(err)
+		}
+		for _, r := range posts {
+			err = writer.Write(r.Columns())
+			if err != nil {
+				panic(err)
+			}
+		}
+		writer.Flush()
+	}
 }
 
 func usage() string {
