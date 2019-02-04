@@ -200,22 +200,3 @@ func main() {
 func usage() string {
 	return fmt.Sprintf("coin-raffle -s SALT -c CHAIN_ID")
 }
-
-/*
-
-{
-   "entry_date":1548972114,
-   "post_data":{
-      "edit_count":0,
-      "last_edit_date":0,
-      "last_edit_user_id":0,
-      "message_sha512":"7841f74a149d8fcefbfd747f5ed57042836d091ec8d2d4d3716f831e8e9b32b32f6cb445f61f6d722379138b07f532eedbb8acdbabb70a516ce6cc4b9be92b48",
-      "node_id":52,
-      "post_date":1548971254,
-      "thread_id":1575,
-      "title_sha512":"cad89aeaf32763f5aa72a8a884da5c0363bc69663a02fe355c19bc5a9fb4e4935e78f61307257c3d69bb11786ba118d305aba0b9be7f17c5e34d8b50ca733d72",
-      "user_id":9
-   },
-   "post_link":"https://factomize.com/forums/index.php?threads/1575#post-10623"
-}
-*/

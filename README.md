@@ -11,3 +11,13 @@ coin-raffle -c CHAIN_ID -s SALT -csv out.csv -h FACTOM_NODE
 
 Open the CSV file in excel or google sheets. Freeze the top 4 rows (these are just headers). Sort the "SortableHash"
 column from A-Z. This is the order of the winners!
+
+# Want to manually check?
+
+You can manually check this as well, if you are so inclined. 
+1. Locate a chain to conduct the raffle on.
+2. For the first post for each user:
+    1. Locate the entry on the Factom blockchain that corrosponds to the factomize post
+    2. Take the sha256(`entryhash + salt`)
+    3. That is your 'raffle ticket'
+4. Sort the raffle tickets.
