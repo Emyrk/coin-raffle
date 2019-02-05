@@ -52,7 +52,7 @@ func (r *Row) Columns() []string {
 		return []string{
 			fmt.Sprintf("%d", r.PostData.UserID),
 			r.InvalidationReason,
-			"",
+			fmt.Sprintf("%x", r.EntryHash),
 			"",
 			r.PostLink,
 			time.Unix(r.PostData.PostDate, 0).UTC().Format(time.RFC822)}
@@ -133,7 +133,10 @@ func main() {
 
 	var posts []*Row
 
-	for i := len(entries) - 1; i >= 0; i-- {
+	repeatedPosts := make(map[int]map[string]bool)
+
+	// for i := len(entries) - 1; i >= 0; i-- {
+	for i := range entries {
 		e := entries[i]
 		post := new(Row)
 		err := json.Unmarshal(e.Content, post)
@@ -145,12 +148,24 @@ func main() {
 			continue // Entry that starts chain
 		}
 
+		if _, ok := repeatedPosts[post.PostData.UserID]; !ok {
+			repeatedPosts[post.PostData.UserID] = make(map[string]bool)
+		}
+
+		if _, rep := repeatedPosts[post.PostData.UserID][post.PostData.MessageSha512]; rep {
+			post.InvalidationReason = "Duplicate entry for same post"
+		}
+
+		repeatedPosts[post.PostData.UserID][post.PostData.MessageSha512] = true
+
 		posts = append(posts, post)
 	}
 
 	for _, p := range posts {
-		if amt, ok := accounterUsers[p.PostData.UserID]; ok {
-			p.InvalidationReason = fmt.Sprintf("Post number %d by user. Already in raffle", amt)
+		if p.InvalidationReason != "" {
+
+		} else if amt, ok := accounterUsers[p.PostData.UserID]; ok {
+			p.InvalidationReason = fmt.Sprintf("Post number %d by user. Already in raffle", amt + 1)
 			accounterUsers[p.PostData.UserID] = amt + 1
 		} else {
 			accounterUsers[p.PostData.UserID] = 1
